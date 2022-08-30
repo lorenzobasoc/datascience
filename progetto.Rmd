@@ -1,0 +1,371 @@
+---
+title: "Progetto"
+author: "Lorenzo Basoc"
+output:
+  ioslides_presentation:
+    css: style.css
+    incremental: yes
+  beamer_presentation:
+    incremental: yes
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=FALSE, echo = TRUE, message=FALSE, warning = FALSE, fig.align='center')
+```
+
+## RISTORANTI DI KYOTO
+
+```{r include=FALSE}
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(tidyr)
+library(treemap)       
+library(ggmap)
+library(plotly)
+library(leaflet)
+library(gridExtra)
+library(stringr)
+
+kyotoOriginal = read.csv("Kyoto_Restaurant_Info.csv")
+
+
+kyoto = read.csv("Kyoto_Restaurant_Info.csv")
+
+```
+
+
+```{r include=FALSE}
+
+kyoto$DinnerPrice = as.character(kyoto$DinnerPrice)
+kyoto$DinnerPrice = gsub("ï¿¥", "", kyoto$DinnerPrice)
+kyoto$DinnerPrice = gsub("ï½ž", "-", kyoto$DinnerPrice)
+kyoto$DinnerPrice = as.factor(kyoto$DinnerPrice)
+DinnerPriceLevels = c(" -999", "1000-1999", "10000-14999", "15000-19999", "2000-2999", "20000-29999", "3000-3999", "4000-4999", "5000-5999", "6000-7999", "8000-9999")
+
+kyoto$LunchPrice = as.character(kyoto$LunchPrice)
+kyoto$LunchPrice = gsub("ï¿¥", "", kyoto$LunchPrice)
+kyoto$LunchPrice = gsub("ï½ž", "-", kyoto$LunchPrice)
+kyoto$LunchPrice = as.factor(kyoto$LunchPrice)
+LunchPriceLevels = c(" -999", "1000-1999", "10000-14999", "15000-19999", "2000-2999", "20000-29999", "3000-3999", "4000-4999", "5000-5999", "6000-7999", "8000-9999")
+
+kyoto$Station = word(kyoto$Station, 1)
+
+```
+
+```{r include=FALSE}
+kyoto = subset(kyoto, select = -JapaneseName )
+kyoto = subset(kyoto, select = -X )
+
+kyotoCoords = data.frame("lon" = 135.768, "lat" = 35.01164)
+
+resturantsMap = leaflet(data = kyoto) %>% 
+                  addProviderTiles("Stamen.TonerLite") %>% 
+                  setView(lng = kyotoCoords$lon, lat = kyotoCoords$lat, zoom = 13) %>% 
+                  addCircleMarkers(kyoto$Long, kyoto$Lat, popup = kyoto$Name,
+                                   clusterOptions = markerClusterOptions()) %>% 
+                  addLegend("topright", colors= "blue", 
+                            labels="Restaurant", title="Food Restaurants in Kyoto")
+```
+
+```{r}
+resturantsMap
+```
+
+
+```{r include=FALSE}
+# GEOSPATIAL ANALYSIS
+
+
+topAreas = data.frame(table(kyoto$Station)) %>% 
+              arrange(desc(Freq)) %>% 
+              head(15) %>% 
+              ggplot(aes(x = reorder(Var1, Freq), y = Freq, 
+                         fill = Var1, label = Freq)) +
+              geom_bar(stat = "identity", show.legend = FALSE) +
+              labs(x = "", y = "", title = "Top 15 Areas") +
+              geom_label(show.legend = F) + 
+              theme(axis.text.x = element_text(angle = 0)) +
+              coord_flip()
+```
+
+
+```{r include=FALSE}
+treemap(data.frame(table(kyoto$Station)),
+                index="Var1",
+                vSize="Freq",
+                type="index",
+                title = "Number of Food Restaurants")
+```
+
+```{r}
+topAreas
+
+```
+
+
+```{r include=FALSE}
+topAreasList = data.frame(table(kyoto$Station)) %>% 
+              arrange(desc(Freq)) %>% 
+              head(15) %>% 
+              select(Var1)
+
+topAreasList = topAreasList$Var1
+
+kyoto = kyoto %>% 
+          filter(Station %in% topAreasList)
+
+# TAKE FIRST 5 STATIONS
+
+gionShijoCoords = data.frame("name" = "Gion Shijio", "lon" = 135.7721588541965, "lat" = 35.0039770633439) 
+karasumaCoords = data.frame("name" = "Karasuma", "lon" = 135.7607598249821, "lat" = 35.003730590367184)
+kyotoCoords = data.frame("name" = "Kyoto", "lon" = 135.75876669799143, "lat" = 34.986341222658595)      
+kawaramachiCoords = data.frame("name" = "Kawaramachi", "lon" = 135.7691777513989, "lat" = 35.0038883024167) 
+sanjoCoords = data.frame("name" = "Sanjo", "lon" = 135.77255999003626, "lat" = 35.00960135580576)
+
+stationsList = list(gionShijoCoords, karasumaCoords, kyotoCoords, kawaramachiCoords, sanjoCoords);
+popularStations = data.frame("name" = "", "lon" = 0, "lat" = 0)
+
+for (station in stationsList) {
+  popularStations = popularStations %>% add_row(name = station$name, lon = station$lon, lat = station$lat)
+}
+
+popularStations = subset(popularStations, lon!=0);
+
+popularStatonMap = leaflet(data = popularStations) %>% 
+                  addProviderTiles("Stamen.TonerLite") %>% 
+                  setView(lng = kyotoCoords$lon, lat = kyotoCoords$lat, zoom = 13) %>% 
+                  addCircleMarkers(popularStations$lon, popularStations$lat, popup = popularStations$name) %>% 
+                  addLegend("topright", colors= "blue", 
+                            labels="Stations", title="")
+```
+
+```{r}
+popularStatonMap
+
+```
+
+```{r include=FALSE}
+category1 = data.frame(kyoto$FirstCategory)
+category2 = data.frame(kyoto$SecondCategory)
+names(category1) = "Category"
+names(category2) = "Category"
+
+
+foodCategories = rbind(category1, category2)
+
+foodCategoriesPie = plot_ly(as.data.frame(table(foodCategories$Category))[-1,], 
+                    labels = ~Var1, values = ~Freq, type = 'pie', 
+                    textposition = "inside") %>%
+                      layout(title = 'Food Categories')
+```
+
+```{r}
+foodCategoriesPie
+```
+
+
+```{r include=FALSE}
+## TODO far si che vengano fuori solo le cat > 2%
+
+
+topFoodCat = data.frame(table(foodCategories$Category)) %>% 
+              arrange(desc(Freq)) %>%
+              head(20) %>% 
+              ggplot(aes(x = reorder(Var1, Freq), y = Freq, 
+                         fill = Var1, label = Freq)) +
+              geom_bar(stat = "identity", show.legend = FALSE) +
+              geom_label(show.legend = F) +
+              coord_flip() +
+              labs(y = "", x = "Food Category",
+                   title = "Top 20 Popular Food Categories in Kyoto")
+```
+
+```{r}
+topFoodCat
+```
+
+
+```{r include=FALSE}
+topCategory = data.frame(table(foodCategories$Category)) %>% 
+                  arrange(desc(Freq)) %>% 
+                  head(20)
+
+topRestaurants  =
+          kyoto %>% 
+            filter(FirstCategory %in% topCategory$Var1 | SecondCategory %in% topCategory$Var1)
+```
+
+```{r include=FALSE}
+Izakaya = 
+  kyoto %>% 
+    filter(Station %in% popularStations$name) %>%
+    filter(FirstCategory == "Izakaya (Tavern)" | SecondCategory == "Izakaya (Tavern)")
+
+avgDinnerPrice =  Izakaya %>% 
+                    ggplot(aes(DinnerPrice, fill = DinnerPrice)) +
+                    geom_histogram(stat = "count") +
+                    facet_wrap(~Station, scales = "free") +
+                     theme(axis.text.x = element_blank()) +
+                    labs(title = "Dinner Price Distributions for Izakayas on Popular Areas",
+                         y = "", x = "Average Price") +
+                    scale_fill_discrete(name = "Average Price for 1 person")
+
+
+Izakaya = 
+  Izakaya %>% 
+  group_by(Station) %>%
+  mutate(AverageDinerRating = mean(DinnerRating, na.rm = TRUE)) %>% 
+  ungroup()
+
+
+topAreasRating =  ggplot() +
+                    geom_histogram(data = Izakaya,
+                                   aes(DinnerRating, fill = Station), show.legend = FALSE) +
+                    geom_vline(data = Izakaya, aes(xintercept = AverageDinerRating), color = "blue", 
+                               linetype = "longdash", size = 1.3) +
+                    facet_wrap(~Station, scales = "free")
+```
+
+```{r}
+avgDinnerPrice
+```
+
+```{r}
+topAreasRating
+```
+
+```{r include=FALSE}
+scoreDistr =  ggplot() + 
+                geom_histogram(aes(x = Izakaya$TotalRating, y=..density..), 
+                               position = "identity", alpha = .9)+
+                labs(y = "", x = "Rating Score of Dinner",
+                     title = "distribution of the  score")
+```
+
+```{r}
+scoreDistr
+```
+
+
+```{r include=FALSE}
+Izakaya$DinnerPrice = as.character(Izakaya$DinnerPrice)
+
+Izakaya = 
+  Izakaya %>% 
+  mutate(DinnerAveragePrice = 
+           case_when(DinnerPrice == "1000-1999" ~ 1500,
+                     DinnerPrice == "2000-2999" ~ 2500,
+                     DinnerPrice == "3000-3999" ~ 3500,
+                     DinnerPrice == "4000-4999" ~ 4500,
+                     DinnerPrice == "5000-5999" ~ 5500))
+
+priceVsRating = Izakaya %>% 
+    ggplot(aes(x = DinnerAveragePrice, y = DinnerRating)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    labs(title = "Rating vs Price", 
+         x = "Average Price for 1 person", y = "Rating Score")
+```
+
+
+```{r}
+priceVsRating
+```
+
+```{r include=FALSE}
+restHisto = Izakaya %>% 
+                    ggplot() + 
+                    geom_histogram(aes(x = DinnerRating, y=..density..), 
+                                   position = "identity", fill = "blue", alpha = .9) +
+                    geom_density(aes(x = DinnerRating, y=..density..),
+                                 fill = "skyblue", alpha = .7) +
+                    annotate("rect",xmin=3.5,xmax=3.6,ymin=0,ymax= 2.5,
+                             alpha=.4,fill="red") +
+                    geom_vline(xintercept = 3.5) + geom_hline(yintercept = 2.5) +
+                    labs(y = "", x = "Rating Score of Dinner",
+                         title = "Targeting only Top Restaurants")
+```
+
+```{r}
+restHisto
+```
+
+
+```{r include=FALSE}
+bestRatedRestaurants = 
+  Izakaya %>% 
+    filter(DinnerRating >= 3.5) %>% 
+    arrange(desc(DinnerRating), desc(ReviewNum))
+
+
+bestRatedRestaurantsChart = bestRatedRestaurants %>% 
+                              ggplot(aes(x = reorder(Name, DinnerRating), y = DinnerRating, 
+                                       fill = DinnerAveragePrice, label = DinnerRating)) +
+                              geom_bar(stat = "identity") + 
+                              coord_flip() + labs(x = "") +
+                              geom_label(angle = 45, show.legend = F) +
+                              scale_fill_gradient(low = "white", high = "red",
+                                                  name = "Average Price") +
+                              labs(title = "The Most Popular IzakayaS in Kyoto",
+                                   y = "Rating Score") + 
+                              theme(axis.text.y = element_text(size = 15))
+
+bestIzakaya = 
+  Izakaya %>% 
+  filter(DinnerRating >= 3.5) %>% 
+  arrange(desc(DinnerRating), desc(ReviewNum))
+
+bestRestaurantArea = 
+  data.frame(table(bestIzakaya$Station)) %>% 
+  arrange(desc(Freq)) %>% 
+  head(8) %>% 
+  ggplot(aes(x = reorder(Var1, Freq), y = Freq, fill = Var1, label = Var1)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  coord_flip() +
+  labs(x ="", y = "Count") +
+  geom_text(position = position_stack(vjust = 0.5), 
+             show.legend = FALSE, size = 5, hjust=0) +
+  theme(axis.text.y = element_blank()) +
+  labs(title = "Most Popular Areas")
+
+```
+
+```{r}
+bestRatedRestaurantsChart
+```
+
+
+```{r}
+bestRestaurantArea
+```
+
+```{r include=FALSE}
+mapBestIzakaya =bestIzakaya %>% 
+    leaflet() %>% 
+    addProviderTiles("Stamen.TonerLite") %>%
+    addCircleMarkers(bestIzakaya$Long, bestIzakaya$Lat, 
+               popup = ~paste0("Name: ", "<b>", Name, "</b>",
+                               "</br>Food Category: ", FirstCategory,
+                              "</br>Rating: ", DinnerRating, " (", DinnerPrice, ")"))
+
+
+realBestIzakayas = data.frame(Name = bestRatedRestaurants$Name, 
+                              Rating = bestRatedRestaurants$TotalRating, 
+                              NumReviews = bestRatedRestaurants$ReviewNum, 
+                              Score = (bestRatedRestaurants$TotalRating/bestRatedRestaurants$ReviewNum) ) %>%
+                  arrange(Score)
+
+```
+
+```{r}
+mapBestIzakaya
+```
+
+
+```{r}
+realBestIzakayas
+
+```
