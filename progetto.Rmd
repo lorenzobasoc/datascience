@@ -33,7 +33,7 @@ kyotoOriginal = read.csv("Kyoto_Restaurant_Info.csv")
 
 
 kyoto = read.csv("Kyoto_Restaurant_Info.csv")
-
+View(kyoto)
 ```
 
 
@@ -68,6 +68,8 @@ resturantsMap = leaflet(data = kyoto) %>%
                                    clusterOptions = markerClusterOptions()) %>% 
                   addLegend("topright", colors= "blue", 
                             labels="Restaurant", title="Food Restaurants in Kyoto")
+
+unique(kyoto$TotalRating)
 ```
 
 ```{r}
@@ -268,6 +270,8 @@ priceVsRating = Izakaya %>%
     geom_smooth(method = "lm") +
     labs(title = "Rating vs Price", 
          x = "Average Price for 1 person", y = "Rating Score")
+
+cor(Izakaya$DinnerAveragePrice, Izakaya$DinnerRating)
 ```
 
 
@@ -295,13 +299,14 @@ restHisto
 
 
 ```{r include=FALSE}
-bestRatedRestaurants = 
+bestIzakaya = 
   Izakaya %>% 
     filter(DinnerRating >= 3.5) %>% 
+    filter(Station == "Kawaramachi") %>%
     arrange(desc(DinnerRating), desc(ReviewNum))
 
 
-bestRatedRestaurantsChart = bestRatedRestaurants %>% 
+bestRatedIzakayaChart = bestIzakaya %>% 
                               ggplot(aes(x = reorder(Name, DinnerRating), y = DinnerRating, 
                                        fill = DinnerAveragePrice, label = DinnerRating)) +
                               geom_bar(stat = "identity") + 
@@ -309,14 +314,9 @@ bestRatedRestaurantsChart = bestRatedRestaurants %>%
                               geom_label(angle = 45, show.legend = F) +
                               scale_fill_gradient(low = "white", high = "red",
                                                   name = "Average Price") +
-                              labs(title = "The Most Popular IzakayaS in Kyoto",
+                              labs(title = "The Most Popular IzakayaS in Kawaramchi",
                                    y = "Rating Score") + 
-                              theme(axis.text.y = element_text(size = 15))
-
-bestIzakaya = 
-  Izakaya %>% 
-  filter(DinnerRating >= 3.5) %>% 
-  arrange(desc(DinnerRating), desc(ReviewNum))
+                              theme(axis.text.y = element_text(size = 13))
 
 bestRestaurantArea = 
   data.frame(table(bestIzakaya$Station)) %>% 
@@ -334,7 +334,7 @@ bestRestaurantArea =
 ```
 
 ```{r}
-bestRatedRestaurantsChart
+bestRatedIzakayaChart
 ```
 
 
@@ -352,10 +352,10 @@ mapBestIzakaya =bestIzakaya %>%
                               "</br>Rating: ", DinnerRating, " (", DinnerPrice, ")"))
 
 
-realBestIzakayas = data.frame(Name = bestRatedRestaurants$Name, 
-                              Rating = bestRatedRestaurants$TotalRating, 
-                              NumReviews = bestRatedRestaurants$ReviewNum, 
-                              Score = (bestRatedRestaurants$TotalRating/bestRatedRestaurants$ReviewNum) ) %>%
+realBestIzakayas = data.frame(Name = bestIzakaya$Name, 
+                              Rating = bestIzakaya$TotalRating, 
+                              NumReviews = bestIzakaya$ReviewNum, 
+                              Score = (bestIzakaya$TotalRating/bestIzakaya$ReviewNum) ) %>%
                   arrange(Score)
 
 ```
